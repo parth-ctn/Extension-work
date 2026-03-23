@@ -1,0 +1,66 @@
+﻿{
+  "manifest_version": 3,
+  "name": "Webmap",
+  "short_name": "Webmap Auth",
+  "version": "1.0.0",
+  "description": "Chrome extension of webmap knowledge base tool.",
+  "icons": {
+    "16": "assets/icons/webmap-logo.png",
+    "32": "assets/icons/webmap-logo.png",
+    "48": "assets/icons/webmap-logo.png",
+    "128": "assets/icons/webmap-logo.png"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "assets/icons/webmap-logo.png",
+      "32": "assets/icons/webmap-logo.png",
+      "48": "assets/icons/webmap-logo.png",
+      "128": "assets/icons/webmap-logo.png"
+    }
+  },
+  "permissions": ["storage", "identity", "scripting", "downloads", "activeTab", "webRequest", "declarativeNetRequest", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["\u003call_urls\u003e"],
+  "oauth2": {
+    "client_id": "438626399755-tnt64124vet0rgfuu2r5j93i8omp2t9a.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["\u003call_urls\u003e"],
+      "js": ["content-loader.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src \u0027self\u0027; object-src \u0027self\u0027; connect-src *"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.js",
+        "popup.css",
+        "content.js",
+        "content.css",
+        "katex.min.css",
+        "github.min.css",
+        "KaTeX_*",
+        "extension.js",
+        "extensionState.js",
+        "browser-polyfill.js",
+        "x-commonjsHelpers.js",
+        "vendor*.js",
+        "*.js",
+        "*.css",
+        "fonts/*.woff2",
+        "styles/*.css",
+        "assets/*"
+      ],
+      "matches": ["\u003call_urls\u003e"]
+    }
+  ]
+}

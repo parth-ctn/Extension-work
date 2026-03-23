@@ -1,0 +1,159 @@
+* { box-sizing: border-box; }
+
+/* Explicit popup dimensions to avoid tiny window */
+:root {
+  --popup-width: 380px;
+  --popup-height: 560px;
+  --corner-radius: 16px;
+}
+
+html, body {
+  width: var(--popup-width);
+  height: var(--popup-height);
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background: transparent;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+button { font-family: inherit; }
+
+input, button, select, textarea { font-family: inherit; }
+
+/* Chat content code blocks and math */
+.wm-chat-message__content pre {
+  background: #0b0b0b0a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow: auto;
+  max-width: 100%;
+  /* Sleek blue scrollbars (match chat horizontal scroller) */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(93, 95, 239, 0.5) rgba(0, 0, 0, 0.06);
+}
+
+/* WebKit-based browsers */
+.wm-chat-message__content pre::-webkit-scrollbar {
+  width: 2px;  /* vertical */
+  height: 2px; /* horizontal */
+}
+
+.wm-chat-message__content pre::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.wm-chat-message__content pre::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.wm-chat-message__content pre::-webkit-scrollbar-thumb {
+  background: rgba(93, 95, 239, 0.527);
+  border-radius: 6px;
+}
+
+.wm-chat-message__content pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(93, 95, 239, 0.68);
+}
+
+.wm-chat-message__content code.hljs {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.5;
+  /* If the code element owns the scroll (hljs), match scrollbar style */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(93, 95, 239, 0.5) rgba(0, 0, 0, 0.06);
+}
+
+.wm-chat-message__content code.hljs::-webkit-scrollbar {
+  height: 2px;
+  width: 2px;
+}
+
+.wm-chat-message__content code.hljs::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.wm-chat-message__content code.hljs::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.wm-chat-message__content code.hljs::-webkit-scrollbar-thumb {
+  background: rgba(93, 95, 239, 0.527);
+  border-radius: 6px;
+}
+
+.wm-chat-message__content code.hljs::-webkit-scrollbar-thumb:hover {
+  background: rgba(93, 95, 239, 0.68);
+}
+
+.wm-chat-message__content .katex {
+  font-size: 1.02em;
+}
+
+/* Per-block copy toolbar (popup UI) */
+.wm-codeblock {
+  position: relative;
+  margin: 12px 0;
+}
+.wm-codeblock__toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+.wm-codeblock__copy {
+  appearance: none;
+  border: none;
+  background-color: rgba(202, 207, 255, 0.5);
+  color: #5d5fef;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  padding: 0;
+}
+.wm-codeblock__copy:hover {
+  background-color: rgba(202, 207, 255, 0.8);
+  transform: scale(1.05);
+}
+.wm-codeblock__copy:active {
+  transform: scale(0.94);
+}
+.wm-codeblock__copy .wm-codeblock__icon {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.wm-codeblock__copy .wm-codeblock__icon--check {
+  display: none;
+  color: #16a34a;
+}
+.wm-codeblock__copy.is-copied {
+  background-color: rgba(114, 223, 163, 0.5);
+  color: #16a34a;
+}
+.wm-codeblock__copy.is-copied .wm-codeblock__icon--copy {
+  display: none;
+}
+.wm-codeblock__copy.is-copied .wm-codeblock__icon--check {
+  display: block;
+}
+
