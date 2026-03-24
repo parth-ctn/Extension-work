@@ -64,6 +64,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 // (reverted) No background OAuth for Google Drive; HTML fallback is used instead
 // On-demand content script injection fallback + CORS debug endpoints
 browser.runtime.onMessage.addListener(async (message, sender) => {
+  console.log("[Webmap] Received message:", message?.type);
   try {
     if (message?.type === "webmap/inject") {
       const tabId = sender?.tab?.id;
@@ -73,6 +74,18 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
         files: ["content.js"],
       });
       return { ok: true };
+    }
+
+    if (message?.type === "webmap/capture-tab") {
+      try {
+        console.log("[Webmap] Capturing tab...");
+        const dataUrl = await browser.tabs.captureVisibleTab(null, { format: "png" });
+        console.log("[Webmap] Tab captured successfully");
+        return { ok: true, dataUrl };
+      } catch (err) {
+        console.error("[Webmap] Capture error:", err);
+        return { ok: false, error: err.message || String(err) };
+      }
     }
 
     if (message?.type === "webmap/cors-status") {

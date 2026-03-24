@@ -55,6 +55,7 @@ export function ChatPanel({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [attachedImage, setAttachedImage] = useState(null);
   const [viewAll, setViewAll] = useState({
     open: false,
     type: null,
@@ -168,9 +169,20 @@ export function ChatPanel({
     event.preventDefault();
     if (!canSend) return;
     const trimmed = messageInput.trim();
-    if (!trimmed) return;
-    sendMessage(trimmed);
+    if (!trimmed && !attachedImage) return;
+
+    let finalMessage = trimmed;
+    if (attachedImage) {
+      if (finalMessage) {
+        finalMessage += `\n\n![Attached Image](${attachedImage})`;
+      } else {
+        finalMessage = `![Attached Image](${attachedImage})`;
+      }
+    }
+
+    sendMessage(finalMessage);
     setMessageInput("");
+    setAttachedImage(null);
   };
 
   const handleInputKeyDown = (event) => {
@@ -359,6 +371,8 @@ export function ChatPanel({
                 onSubmit={handleSend}
                 onKeyDown={handleInputKeyDown}
                 canSend={canSend}
+                attachedImage={attachedImage}
+                setAttachedImage={setAttachedImage}
               />
               <div className="copy-right">
                 <p>Powered by.</p>
@@ -598,6 +612,8 @@ export function ChatPanel({
           onSubmit={handleSend}
           onKeyDown={handleInputKeyDown}
           canSend={canSend}
+          attachedImage={attachedImage}
+          setAttachedImage={setAttachedImage}
         />
         <div className="copy-right">
           <p>Powered by.</p>
