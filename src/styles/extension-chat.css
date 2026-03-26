@@ -2232,3 +2232,18 @@ body {
   background: rgba(93, 95, 239, 0.4);
   border-radius: 6px;
 }
+/* Learn More Selection Popup */
+.learn-more-popup {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: auto !important;
+}
+.learn-more-btn {
+  transition: all 0.2s ease !important;
+}
+.learn-more-btn:hover {
+  transform: scale(1.05) !important;
+  background-color: #5153d6 !important;
+}
+.learn-more-btn:active {
+  transform: scale(0.95) !important;
+}

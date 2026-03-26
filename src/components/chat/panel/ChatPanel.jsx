@@ -1541,7 +1541,6 @@
 //     </section>
 //   );
 // }
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHAT_EMPTY_STATE, CHAT_HEADER_TEXT } from "../../../constants/chat.js";
 import { ChatPanelHeader } from "./ChatPanelHeader.jsx";
@@ -1551,6 +1550,7 @@ import { ChatProgress } from "./ChatProgress.jsx";
 import { ChatErrorState } from "./ChatErrorState.jsx";
 import { ChatEmptyState } from "./ChatEmptyState.jsx";
 import { ChatMessageList } from "./ChatMessageList.jsx";
+// Start screen now shows a Knowledge Base list for reuse
 import { KbList } from "./KbList.jsx";
 import { SessionMenu } from "./SessionMenu.jsx";
 import { ViewAllSheet } from "./ViewAllSheet.jsx";
@@ -1593,7 +1593,7 @@ export function ChatPanel({
   }, [currentUrl]);
 
   const [messageInput, setMessageInput] = useState("");
-  const [kbComparison, setKbComparison] = useState("pending");
+  const [kbComparison, setKbComparison] = useState("pending"); // none|same|changed|pending
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
@@ -1604,6 +1604,7 @@ export function ChatPanel({
     type: null,
     items: [],
   });
+  const [selection, setSelection] = useState(null); // { text, rect }
 
   const hasSuggestions = Boolean(state.chat?.suggestions?.length);
   const canShowHeaderControls =
@@ -1611,6 +1612,8 @@ export function ChatPanel({
     kbComparison === "same" ||
     kbComparison === "changed";
   const knowledgeBatchId = state?.context?.knowledgeBatchId || null;
+  // Allow opening sessions whenever chat controls are shown (chat is active)
+  // Also don't show sessions during processing/running state
   const canOpenSessions = canShowHeaderControls && state.status !== "running";
 
   const startChat = useCallback(() => {
@@ -1632,11 +1635,13 @@ export function ChatPanel({
 
   const openViewAll = useCallback((payload) => {
     const { type, items } = payload || {};
+    // Open the View All sheet first
     setViewAll({
       open: true,
       type: type || null,
       items: Array.isArray(items) ? items : [],
     });
+    // Close the side menu once the sheet is opening
     setIsSessionMenuOpen(false);
   }, []);
 
@@ -1651,10 +1656,14 @@ export function ChatPanel({
       setShowSuggestions(false);
       setIsExpanded(false);
       setIsSessionMenuOpen(false);
+      // Reset initial load flag when closing
       setIsInitialLoad(true);
       return;
     }
+    // Mark as no longer initial load immediately to prevent layout glitch
     if (isOpen && isInitialLoad) {
+      // Use requestAnimationFrame to update after the open transition starts
+      // This prevents the delay-induced layout shift while still preventing content flash
       if (typeof window !== "undefined" && window.requestAnimationFrame) {
         window.requestAnimationFrame(() => {
           window.requestAnimationFrame(() => setIsInitialLoad(false));
@@ -1679,7 +1688,35 @@ export function ChatPanel({
 
   useEffect(() => {
     setIsSessionMenuOpen(false);
+    setSelection(null);
   }, [state.status]);
+
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      const path = e.composedPath();
+      const isInsidePopup = path.some(
+        (el) => el.classList && el.classList.contains("learn-more-popup"),
+      );
+      if (!isInsidePopup) {
+        setSelection(null);
+      }
+    };
+
+    const handleScroll = () => {
+      setSelection(null);
+    };
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    window.addEventListener("scroll", handleScroll, {
+      capture: true,
+      passive: true,
+    });
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+      window.removeEventListener("scroll", handleScroll, { capture: true });
+    };
+  }, []);
 
   const handleRetry = () => {
     resetWorkflow();
@@ -1693,6 +1730,7 @@ export function ChatPanel({
     setShowSuggestions(false);
   };
 
+  // Allow typing when awaitingResponse, but block sending
   const canSend =
     state.status === "ready" &&
     state.chat.ready &&
@@ -1703,25 +1741,30 @@ export function ChatPanel({
     event.preventDefault();
     if (!canSend) return;
     const trimmed = messageInput.trim();
-    if (!trimmed && attachedImages.length === 0) return;
+    if (!trimmed && attachedImages.length === 0 && !selectedText) return;
 
     let finalMessage = trimmed;
     if (attachedImages.length > 0) {
-      const imgMarkdown = attachedImages
-        .map((src, i) => `![Attached Image ${i + 1}](${src})`)
-        .join("\n");
-      finalMessage = finalMessage
-        ? `${finalMessage}\n\n${imgMarkdown}`
-        : imgMarkdown;
+      const imageMarkdown = attachedImages
+        .map((img) => `![Attached Image](${img})`)
+        .join("\n\n");
+
+      if (finalMessage) {
+        finalMessage += `\n\n${imageMarkdown}`;
+      } else {
+        finalMessage = imageMarkdown;
+      }
     }
 
     sendMessage(finalMessage);
     setMessageInput("");
     setAttachedImages([]);
+    setSelectedText("");
   };
 
   const handleInputKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
+      // While assistant is typing, block submit via Enter
       if (state.chat.awaitingResponse) {
         event.preventDefault();
         return;
@@ -1732,7 +1775,9 @@ export function ChatPanel({
   };
 
   const handleSuggestion = (suggestion) => {
+    // Keep suggestions visible and jump to latest after sending
     sendMessage(suggestion, { mode: "suggested" });
+    // Do not hide suggestions on click so the user can see and reuse them
   };
 
   const headerSubtitle = useMemo(() => {
@@ -1755,6 +1800,7 @@ export function ChatPanel({
 
   let bodyContent = null;
 
+  // Prevent flash of old content on initial load/refresh
   if (isInitialLoad && isOpen) {
     bodyContent = null;
   } else if (state.status === "running") {
@@ -1783,6 +1829,7 @@ export function ChatPanel({
       </>
     );
   } else if (state.status === "ready") {
+    // Skip loader screen when entering chat via an existing KB.
     if (!state.chat.messages.length && !state.chat.awaitingResponse) {
       bodyContent = (
         <ChatEmptyState description={CHAT_EMPTY_STATE.readyDescription} />
@@ -1797,6 +1844,11 @@ export function ChatPanel({
           onToggleSuggestions={toggleSuggestions}
           onSuggestionSelect={handleSuggestion}
           logoUrl={logoUrl}
+          onLearnMore={(text) => {
+            const quoted = `> ${text}\n\n`;
+            setMessageInput((prev) => (prev ? `${quoted}${prev}` : quoted));
+          }}
+          onSelection={setSelection}
         />
       );
     }
@@ -1828,7 +1880,6 @@ export function ChatPanel({
     .filter(Boolean)
     .join(" ");
 
-  // ─── EXPANDED (full-screen) VIEW ────────────────────────────────────────────
   if (isExpanded) {
     return (
       <section
@@ -1894,7 +1945,6 @@ export function ChatPanel({
             />
             <div className="agent-container">{bodyContent}</div>
             <div className="section-footer">
-              {/* ✅ isExpanded={true} — expanded view ma side sheet aavse */}
               <ChatPanelFooter
                 status={state.status}
                 chat={state.chat}
@@ -1905,7 +1955,6 @@ export function ChatPanel({
                 canSend={canSend}
                 attachedImages={attachedImages}
                 setAttachedImages={setAttachedImages}
-                isExpanded={true}
               />
               <div className="copy-right">
                 <p>Powered by.</p>
@@ -1915,8 +1964,9 @@ export function ChatPanel({
                   viewBox="0 0 70 18"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
+                  className="copy-right-logo"
                 >
-                  <g clipPath="url(#clip0_8091_33206_expanded)">
+                  <g clipPath="url(#clip0_8091_33206)">
                     <path
                       d="M25.8331 5.02888C25.7384 5.02888 25.6199 5.02888 25.5251 5.02888C25.5251 5.02888 25.5251 5.02888 25.5014 5.02888C25.3829 5.02888 25.2645 5.0531 25.1697 5.10153C25.0276 5.1984 25.0038 5.31948 24.9802 5.39212L23.3453 9.55722L22.1844 6.31232C22.0422 5.92487 21.9001 5.53742 21.758 5.14996C21.6868 4.98045 21.5447 4.85938 21.3551 4.85938H21.3315C21.284 4.85938 21.213 4.85938 21.1656 4.85938C20.976 4.85938 20.8102 4.98045 20.7392 5.14996C20.3127 6.36075 19.8625 7.57153 19.436 8.78232L19.8862 9.96888C20.0046 10.3079 20.4786 10.3079 20.5969 9.96888C20.8102 9.38771 21.0234 8.80654 21.2366 8.22535L22.2554 11.0344C22.445 11.5429 22.6109 12.0272 22.8004 12.5358C22.8715 12.7053 23.0136 12.8263 23.2032 12.8263H23.2268C23.2743 12.8263 23.3217 12.8263 23.3691 12.8263H23.3927C23.5823 12.8263 23.7244 12.7295 23.7955 12.5358C24.53 10.6469 25.2645 8.75811 25.999 6.86928L26.5202 5.53742C26.5202 5.5132 26.5439 5.48899 26.5439 5.46477L26.6861 4.95624L25.8331 5.02888Z"
                       fill="#5D5FEF"
@@ -1998,7 +2048,7 @@ export function ChatPanel({
                       fill="white"
                     />
                     <path
-                      d="M6.37618 5.83501C6.42217 5.70942 6.47449 5.59059 6.53302 5.48013C6.6083 5.33807 6.69134 5.21413 6.78061 5.10938C6.48106 5.22199 6.20638 5.40058 5.97395 5.63813C5.9684 5.6438 5.963 5.64961 5.95752 5.65534C6.08458 5.72458 6.22518 5.78475 6.37618 5.83501Z"
+                      d="M6.37618 5.83501C6.42217 5.70038 6.47449 5.59059 6.53302 5.48013C6.6083 5.33807 6.69134 5.21413 6.78061 5.10938C6.48106 5.22199 6.20638 5.40058 5.97395 5.63813C5.9684 5.6438 5.963 5.64961 5.95752 5.65534C6.08458 5.72458 6.22518 5.78475 6.37618 5.83501Z"
                       fill="white"
                     />
                     <path
@@ -2031,7 +2081,7 @@ export function ChatPanel({
                     />
                   </g>
                   <defs>
-                    <clipPath id="clip0_8091_33206_expanded">
+                    <clipPath id="clip0_8091_33206">
                       <rect width="70" height="18" fill="white" />
                     </clipPath>
                   </defs>
@@ -2051,6 +2101,7 @@ export function ChatPanel({
             if (viewAll.type === "kbs") {
               startChat();
             } else {
+              // threads
               createNewChat?.();
             }
           }}
@@ -2062,6 +2113,7 @@ export function ChatPanel({
               setIsSessionMenuOpen(false);
               startExistingKbChat?.({ batchId, title });
             } else {
+              // threads
               closeViewAll();
               setIsSessionMenuOpen(false);
               switchSession?.(item);
@@ -2072,7 +2124,7 @@ export function ChatPanel({
     );
   }
 
-  // ─── NORMAL (collapsed) VIEW ─────────────────────────────────────────────────
+  // Normal collapsed view
   return (
     <section
       id="wm-chat-panel"
@@ -2135,7 +2187,6 @@ export function ChatPanel({
         onViewAll={openViewAll}
       />
       <div className="wm-chat-sidebar__footer">
-        {/* ✅ isExpanded={false} — collapsed view ma bottom sheet aavse */}
         <ChatPanelFooter
           status={state.status}
           chat={state.chat}
@@ -2146,7 +2197,6 @@ export function ChatPanel({
           canSend={canSend}
           attachedImages={attachedImages}
           setAttachedImages={setAttachedImages}
-          isExpanded={false}
         />
         <div className="copy-right">
           <p>Powered by.</p>
@@ -2156,8 +2206,9 @@ export function ChatPanel({
             viewBox="0 0 70 18"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            className="copy-right-logo"
           >
-            <g clipPath="url(#clip0_8091_33206_expanded)">
+            <g clipPath="url(#clip0_8091_33206)">
               <path
                 d="M25.8331 5.02888C25.7384 5.02888 25.6199 5.02888 25.5251 5.02888C25.5251 5.02888 25.5251 5.02888 25.5014 5.02888C25.3829 5.02888 25.2645 5.0531 25.1697 5.10153C25.0276 5.1984 25.0038 5.31948 24.9802 5.39212L23.3453 9.55722L22.1844 6.31232C22.0422 5.92487 21.9001 5.53742 21.758 5.14996C21.6868 4.98045 21.5447 4.85938 21.3551 4.85938H21.3315C21.284 4.85938 21.213 4.85938 21.1656 4.85938C20.976 4.85938 20.8102 4.98045 20.7392 5.14996C20.3127 6.36075 19.8625 7.57153 19.436 8.78232L19.8862 9.96888C20.0046 10.3079 20.4786 10.3079 20.5969 9.96888C20.8102 9.38771 21.0234 8.80654 21.2366 8.22535L22.2554 11.0344C22.445 11.5429 22.6109 12.0272 22.8004 12.5358C22.8715 12.7053 23.0136 12.8263 23.2032 12.8263H23.2268C23.2743 12.8263 23.3217 12.8263 23.3691 12.8263H23.3927C23.5823 12.8263 23.7244 12.7295 23.7955 12.5358C24.53 10.6469 25.2645 8.75811 25.999 6.86928L26.5202 5.53742C26.5202 5.5132 26.5439 5.48899 26.5439 5.46477L26.6861 4.95624L25.8331 5.02888Z"
                 fill="#5D5FEF"
@@ -2239,7 +2290,7 @@ export function ChatPanel({
                 fill="white"
               />
               <path
-                d="M6.37618 5.83501C6.42217 5.70942 6.47449 5.59059 6.53302 5.48013C6.6083 5.33807 6.69134 5.21413 6.78061 5.10938C6.48106 5.22199 6.20638 5.40058 5.97395 5.63813C5.9684 5.6438 5.963 5.64961 5.95752 5.65534C6.08458 5.72458 6.22518 5.78475 6.37618 5.83501Z"
+                d="M6.37618 5.83501C6.42217 5.70038 6.47449 5.59059 6.53302 5.48013C6.6083 5.33807 6.69134 5.21413 6.78061 5.10938C6.48106 5.22199 6.20638 5.40058 5.97395 5.63813C5.9684 5.6438 5.963 5.64961 5.95752 5.65534C6.08458 5.72458 6.22518 5.78475 6.37618 5.83501Z"
                 fill="white"
               />
               <path
@@ -2272,7 +2323,7 @@ export function ChatPanel({
               />
             </g>
             <defs>
-              <clipPath id="clip0_8091_33206_expanded">
+              <clipPath id="clip0_8091_33206">
                 <rect width="70" height="18" fill="white" />
               </clipPath>
             </defs>
@@ -2289,6 +2340,7 @@ export function ChatPanel({
           if (viewAll.type === "kbs") {
             startChat();
           } else {
+            // threads
             createNewChat?.();
           }
         }}
@@ -2300,12 +2352,76 @@ export function ChatPanel({
             setIsSessionMenuOpen(false);
             startExistingKbChat?.({ batchId, title });
           } else {
+            // threads
             closeViewAll();
             setIsSessionMenuOpen(false);
             switchSession?.(item);
           }
         }}
       />
+
+      {selection && (
+        <div
+          className="learn-more-popup"
+          style={{
+            position: "absolute",
+            top: `${Math.max(10, selection.rect.top - 50)}px`,
+            left: `${selection.rect.left}px`,
+            transform: "translateX(-50%)",
+            zIndex: 99999999,
+            padding: "4px",
+            background: "white",
+            borderRadius: "24px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "auto",
+          }}
+        >
+          <button
+            type="button"
+            className="learn-more-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              const quoted = `> ${selection.text}\n\n`;
+              setMessageInput((prev) => (prev ? `${quoted}${prev}` : quoted));
+              setSelection(null);
+              // Clear selection across document and shadow roots
+              if (window.getSelection) window.getSelection().removeAllRanges();
+            }}
+            style={{
+              backgroundColor: "#5D5FEF",
+              color: "white",
+              border: "none",
+              borderRadius: "20px",
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: "600",
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(93, 95, 239, 0.4)",
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            Learn More
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
