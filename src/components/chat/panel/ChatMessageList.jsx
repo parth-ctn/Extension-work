@@ -672,8 +672,6 @@
 //   );
 // }
 
-
-
 import React, {
   useCallback,
   useEffect,
@@ -1135,19 +1133,41 @@ export function ChatMessageList({
     }
 
     const range = sel.getRangeAt(0);
+
+    // Only allow selection from Assistant messages (.message-agent)
+    let commonAncestor = range.commonAncestorContainer;
+    if (commonAncestor.nodeType === 3) {
+      commonAncestor = commonAncestor.parentNode;
+    }
+
+    // Ensure the selection is within an assistant's message and not a user's message or outside
+    const isAgentMessage =
+      commonAncestor &&
+      typeof commonAncestor.closest === "function" &&
+      commonAncestor.closest(".message-agent");
+    if (!isAgentMessage) {
+      onSelection?.(null);
+      return;
+    }
+
     const rect = range.getBoundingClientRect();
 
-    // Calculate coordinates relative to the sidebar (containing block)
-    const sidebar = node.closest(".wm-chat-sidebar");
-    const sidebarRect = sidebar
-      ? sidebar.getBoundingClientRect()
+    // Calculate position relative to the chat panel to handle CSS transforms
+    const panel = node.closest("#wm-chat-panel");
+    const panelRect = panel
+      ? panel.getBoundingClientRect()
       : { top: 0, left: 0 };
 
     onSelection?.({
       text,
       rect: {
-        top: rect.top - sidebarRect.top,
-        left: rect.left - sidebarRect.left + rect.width / 2,
+        top: rect.top - panelRect.top,
+        left: rect.left - panelRect.left,
+        width: rect.width,
+        height: rect.height,
+        // absolute positioning in case we need it
+        absTop: rect.top,
+        absLeft: rect.left,
       },
     });
   }, [onSelection]);

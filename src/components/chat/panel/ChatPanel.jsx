@@ -1532,7 +1532,7 @@
 //             setIsSessionMenuOpen(false);
 //             startExistingKbChat?.({ batchId, title });
 //           } else {
-//             closeViewAll();
+//             closeViewAll();  
 //             setIsSessionMenuOpen(false);
 //             switchSession?.(item);
 //           }
@@ -1605,6 +1605,7 @@ export function ChatPanel({
     items: [],
   });
   const [selection, setSelection] = useState(null); // { text, rect }
+  const [quotedText, setQuotedText] = useState(null);
 
   const hasSuggestions = Boolean(state.chat?.suggestions?.length);
   const canShowHeaderControls =
@@ -1741,9 +1742,16 @@ export function ChatPanel({
     event.preventDefault();
     if (!canSend) return;
     const trimmed = messageInput.trim();
-    if (!trimmed && attachedImages.length === 0 && !selectedText) return;
+    // use selection for existence check as selectedText is undefined
+    if (!trimmed && attachedImages.length === 0 && !selection && !quotedText)
+      return;
 
     let finalMessage = trimmed;
+    if (quotedText) {
+      const quoted = `> ${quotedText}\n\n`;
+      finalMessage = finalMessage ? `${quoted}${finalMessage}` : quoted;
+    }
+
     if (attachedImages.length > 0) {
       const imageMarkdown = attachedImages
         .map((img) => `![Attached Image](${img})`)
@@ -1759,7 +1767,8 @@ export function ChatPanel({
     sendMessage(finalMessage);
     setMessageInput("");
     setAttachedImages([]);
-    setSelectedText("");
+    setSelection(null);
+    setQuotedText(null);
   };
 
   const handleInputKeyDown = (event) => {
@@ -1871,6 +1880,72 @@ export function ChatPanel({
     );
   }
 
+  const renderLearnMorePopup = () => {
+    if (!selection) return null;
+
+    return (
+      <div
+        className="learn-more-popup"
+        style={{
+          position: "absolute",
+          top: `${Math.max(10, selection.rect.top - 50)}px`,
+          left: `${selection.rect.left + selection.rect.width / 2}px`,
+          transform: "translateX(-50%)",
+          zIndex: 2147483647,
+          padding: "4px",
+          background: "white",
+          borderRadius: "24px",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "auto",
+        }}
+      >
+        <button
+          type="button"
+          className="learn-more-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setQuotedText(selection.text);
+            setSelection(null);
+            // Clear selection across document and shadow roots
+            if (window.getSelection) window.getSelection().removeAllRanges();
+          }}
+          style={{
+            backgroundColor: "#5D5FEF",
+            color: "white",
+            border: "none",
+            borderRadius: "20px",
+            padding: "8px 16px",
+            fontSize: "13px",
+            fontWeight: "600",
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(93, 95, 239, 0.4)",
+            whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          Learn More
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    );
+  };
+
   const panelClassNames = [
     "wm-chat-sidebar",
     isOpen ? "wm-chat-sidebar--open" : "",
@@ -1955,6 +2030,9 @@ export function ChatPanel({
                 canSend={canSend}
                 attachedImages={attachedImages}
                 setAttachedImages={setAttachedImages}
+                quotedText={quotedText}
+                setQuotedText={setQuotedText}
+                onOpenSessions={() => setIsSessionMenuOpen(true)}
               />
               <div className="copy-right">
                 <p>Powered by.</p>
@@ -2120,6 +2198,38 @@ export function ChatPanel({
             }
           }}
         />
+
+        <ViewAllSheet
+          open={viewAll.open}
+          type={viewAll.type}
+          items={viewAll.items}
+          onClose={closeViewAll}
+          onCreateNew={() => {
+            closeViewAll();
+            if (viewAll.type === "kbs") {
+              startChat();
+            } else {
+              // threads
+              createNewChat?.();
+            }
+          }}
+          onSelectItem={(item) => {
+            if (viewAll.type === "kbs") {
+              const batchId = item.batch_id || item.id;
+              const title = item.title || item.link_url || "";
+              closeViewAll();
+              setIsSessionMenuOpen(false);
+              startExistingKbChat?.({ batchId, title });
+            } else {
+              // threads
+              closeViewAll();
+              setIsSessionMenuOpen(false);
+              switchSession?.(item);
+            }
+          }}
+        />
+
+        {renderLearnMorePopup()}
       </section>
     );
   }
@@ -2197,6 +2307,9 @@ export function ChatPanel({
           canSend={canSend}
           attachedImages={attachedImages}
           setAttachedImages={setAttachedImages}
+          quotedText={quotedText}
+          setQuotedText={setQuotedText}
+          onOpenSessions={() => setIsSessionMenuOpen(true)}
         />
         <div className="copy-right">
           <p>Powered by.</p>
@@ -2360,68 +2473,7 @@ export function ChatPanel({
         }}
       />
 
-      {selection && (
-        <div
-          className="learn-more-popup"
-          style={{
-            position: "absolute",
-            top: `${Math.max(10, selection.rect.top - 50)}px`,
-            left: `${selection.rect.left}px`,
-            transform: "translateX(-50%)",
-            zIndex: 99999999,
-            padding: "4px",
-            background: "white",
-            borderRadius: "24px",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          <button
-            type="button"
-            className="learn-more-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              const quoted = `> ${selection.text}\n\n`;
-              setMessageInput((prev) => (prev ? `${quoted}${prev}` : quoted));
-              setSelection(null);
-              // Clear selection across document and shadow roots
-              if (window.getSelection) window.getSelection().removeAllRanges();
-            }}
-            style={{
-              backgroundColor: "#5D5FEF",
-              color: "white",
-              border: "none",
-              borderRadius: "20px",
-              padding: "8px 16px",
-              fontSize: "13px",
-              fontWeight: "600",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(93, 95, 239, 0.4)",
-              whiteSpace: "nowrap",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            Learn More
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      )}
+      {renderLearnMorePopup()}
     </section>
   );
 }
